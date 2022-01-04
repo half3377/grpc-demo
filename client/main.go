@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"time"
 
 	pb "new/helloworld/helloworld"
@@ -23,10 +25,31 @@ var (
 	addr     = flag.String("addr", "localhost:50052", "the address to connect to")
 	name     = flag.String("name", defaultName, "Name to greet")
 	filename = flag.String("f", "", "filename")
+	logger   *log.Logger
 )
+
+func loginit() {
+
+	file := currentDir() + "/client.log"
+	logFile, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		panic(err)
+	}
+	logger = log.New(logFile, "[rpc]", log.LstdFlags|log.Lshortfile|log.LUTC)
+}
+
+func currentDir() string {
+	path, err := os.Executable()
+	if err != nil {
+		log.Printf(err.Error())
+	}
+	dir := filepath.Dir(path)
+	return dir
+}
 
 func main() {
 	flag.Parse()
+	loginit()
 	_, err := os.Stat(*filename)
 	if err != nil {
 		log.Fatal("file not found")
@@ -38,7 +61,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to load credentials: %v", err)
 	}
-
 	// Set up a connection to the server.
 	conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(creds))
 	if err != nil {
@@ -48,11 +70,16 @@ func main() {
 	c := pb.NewGreeterClient(conn)
 
 	// Contact the server and print out its response.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*600)
 	defer cancel()
 	r, err := c.SayHello(ctx, &pb.HelloRequest{Name: path.Base(*filename), Data: data})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
+	}
+	if strings.Contains(r.Message, "sucess") {
+		logger.Println(*addr + "revice " + *filename)
+	} else {
+		logger.Println(*addr + "faild revice " + *filename)
 	}
 	log.Printf("%s", r.GetMessage())
 
@@ -60,5 +87,6 @@ func main() {
 	if err != nil {
 		log.Fatal("could not Ex")
 	}
+	logger.Println(*addr + r.Message + *filename)
 	log.Printf("%s", r.GetMessage())
 }
